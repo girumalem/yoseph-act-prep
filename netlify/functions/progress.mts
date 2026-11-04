@@ -8,9 +8,12 @@ import { getStore } from "@netlify/blobs"
 // never in this code). A DAD_PIN environment variable, if set, takes priority —
 // use it to reset a forgotten PIN.
 const STORE = "act-progress"
-const KEY = "yoseph"
 const AUTH_KEY = "dad-auth"
-const WRITE_TOKEN = "yoseph-act-sync-v1" // ships in the app; only stops random posts
+// Each student's app sends its own token (it ships in the app; it only stops random posts).
+const STUDENTS: Record<string, string> = {
+  yoseph: "yoseph-act-sync-v1",
+  brooke: "brooke-sync-v1",
+}
 const MAX_BYTES = 300_000
 const ITERATIONS = 210_000
 
@@ -45,6 +48,8 @@ type Auth = { salt: string; hash: string; iterations: number; createdAt: number 
 
 export default async (req: Request, context: Context) => {
   const store = getStore({ name: STORE, consistency: "strong" })
+  const student = (new URL(req.url).searchParams.get("student") || "yoseph").toLowerCase()
+  if (!(student in STUDENTS)) return json({ error: "unknown student" }, 404)
   const envPin = (Netlify.env.get("DAD_PIN") || "").trim()
 
   // Dad creates his PIN (only possible while no PIN exists)
@@ -61,14 +66,14 @@ export default async (req: Request, context: Context) => {
 
   // The student app saves its progress snapshot
   if (req.method === "POST") {
-    if (req.headers.get("x-sync-token") !== WRITE_TOKEN) return json({ error: "unauthorized" }, 401)
+    if (req.headers.get("x-sync-token") !== STUDENTS[student]) return json({ error: "unauthorized" }, 401)
     const text = await req.text()
     if (text.length > MAX_BYTES) return json({ error: "too large" }, 413)
     let data: any
     try { data = JSON.parse(text) } catch { return json({ error: "bad json" }, 400) }
     if (!data || typeof data !== "object" || typeof data.act !== "object") return json({ error: "bad shape" }, 400)
     data.receivedAt = Date.now()
-    await store.setJSON(KEY, data)
+    await store.setJSON(student, data)
     return json({ ok: true, receivedAt: data.receivedAt })
   }
 
@@ -84,7 +89,7 @@ export default async (req: Request, context: Context) => {
       ok = given !== "" && sameText(await hashPin(given, auth.salt, auth.iterations), auth.hash)
     }
     if (!ok) return json({ error: "Wrong PIN." }, 401)
-    const data = await store.get(KEY, { type: "json" })
+    const data = await store.get(student, { type: "json" })
     if (data === null) return json({ empty: true })
     return json(data)
   }

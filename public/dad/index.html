@@ -64,6 +64,9 @@ tr.today td{font-weight:700}
 .chip{font-family:var(--display);font-weight:600;font-size:14px;padding:4px 10px;border-radius:99px;background:var(--warn-bg);color:var(--warn)}
 .hist div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--rule);padding:6px 0;font-size:14px}
 .note{font-size:13px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:10px;overflow:hidden;background:var(--sheet)}
+.seg button{font-family:var(--display);font-weight:800;font-size:16px;background:transparent;color:var(--muted);border:0;padding:10px 18px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--pencil);color:var(--pencil-ink)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -82,7 +85,7 @@ tr.today td{font-weight:700}
 
   <form class="card" id="login" autocomplete="off" hidden>
     <h2>Enter your PIN</h2>
-    <p class="note" style="margin:0">This page shows Yoseph's study activity, synced automatically from his ACT prep app.</p>
+    <p class="note" style="margin:0">This page shows Brooke's and Yoseph's study activity, synced automatically from their study apps.</p>
     <div class="row" style="justify-content:flex-start">
       <input type="password" id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="12" aria-label="PIN" required>
       <button class="btn primary" type="submit">Open dashboard</button>
@@ -102,6 +105,8 @@ tr.today td{font-weight:700}
     <div class="err" id="setupErr" hidden></div>
   </form>
 
+  <div class="row" id="kidsRow" hidden><div class="seg" role="group" aria-label="Choose student"><button type="button" data-s="brooke">Brooke</button><button type="button" data-s="yoseph">Yoseph</button></div><span class="note" id="kidNote"></span></div>
+
   <main id="dash" hidden style="display:flex;flex-direction:column;gap:18px"></main>
 </div>
 <script>
@@ -109,6 +114,10 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const PKEY="act-dad-pin";
 let PIN="";try{PIN=localStorage.getItem(PKEY)||""}catch(e){}
+const KIDS={yoseph:{name:"Yoseph",he:"he",He:"He",him:"him",his:"his",app:"ACT prep app",note:"ACT prep"},
+            brooke:{name:"Brooke",he:"she",He:"She",him:"her",his:"her",app:"study app",note:"Study Quest · 6th grade"}};
+let STUDENT="yoseph";try{const v=localStorage.getItem("act-dad-student");if(v&&KIDS[v])STUDENT=v}catch(e){}
+function paintKids(){document.querySelectorAll("#kidsRow button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.s===STUDENT)));$("kidNote").textContent=KIDS[STUDENT].note}
 
 const dkey=d=>{const x=new Date(d);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")};
 const monday=d=>{const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
@@ -117,16 +126,16 @@ const pct=(a,b)=>b?Math.round(a/b*100):null;
 
 async function load(){
   const err=$("loginErr");err.hidden=true;
-  let r;try{r=await fetch("/api/progress",{headers:{"x-dad-pin":PIN},cache:"no-store"})}catch(e){showLoginErr("Couldn't reach the server. Check your connection and try again.");return}
+  let r;try{r=await fetch("/api/progress?student="+STUDENT,{headers:{"x-dad-pin":PIN},cache:"no-store"})}catch(e){showLoginErr("Couldn't reach the server. Check your connection and try again.");return}
   let data={};try{data=await r.json()}catch(e){}
   if(r.status===428){$("login").hidden=true;$("setup").hidden=false;return}
   if(r.status===401){if(!PIN){$("login").hidden=false;return}try{localStorage.removeItem(PKEY)}catch(e){}showLoginErr("That PIN didn't work. Try again.");return}
   if(r.status===429){showLoginErr("Too many tries. Wait a minute and try again.");return}
   if(!r.ok){showLoginErr(data.error||"Something went wrong. Try again in a minute.");return}
-  $("login").hidden=true;$("actions").hidden=false;$("dash").hidden=false;
+  $("login").hidden=true;$("actions").hidden=false;$("dash").hidden=false;$("kidsRow").hidden=false;paintKids();
   render(data);
 }
-function showLoginErr(m){$("login").hidden=false;$("dash").hidden=true;$("actions").hidden=true;const e=$("loginErr");e.textContent=m;e.hidden=false}
+function showLoginErr(m){$("login").hidden=false;$("dash").hidden=true;$("actions").hidden=true;$("kidsRow").hidden=true;const e=$("loginErr");e.textContent=m;e.hidden=false}
 
 function items(d){return d?(d.cards||0)+(d.vq||0)+(d.m||0)+(d.e||0):0}
 function weekStats(act,G,start){
@@ -141,10 +150,11 @@ function ago(ts){if(!ts)return"never";const m=Math.round((Date.now()-ts)/60000);
 
 function render(data){
   const D=$("dash");
-  if(data.empty){$("updated").textContent="No data yet";
-    D.innerHTML=`<div class="card"><h2>Waiting for Yoseph's first study session</h2><p class="note" style="margin:0">His progress appears here automatically after he opens the updated app and studies. There's nothing he needs to send.</p></div>`;return}
+  const K=KIDS[STUDENT];
+  if(data.empty){$("updated").textContent="No data yet for "+K.name;
+    D.innerHTML=`<div class="card"><h2>Waiting for ${K.name}'s first study session</h2><p class="note" style="margin:0">${K.his[0].toUpperCase()+K.his.slice(1)} progress appears here automatically after ${K.he} opens the ${K.app} and studies. There's nothing ${K.he} needs to send.</p></div>`;return}
   const G=data.goal||{days:7,cards:100,sets:3,acc:70,reward:25,dayMin:20},act=data.act||{};
-  $("updated").textContent="Last update from Yoseph's app: "+ago(data.at)+" · "+new Date(data.at).toLocaleString("en-US",{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+  $("updated").textContent="Last update from "+K.name+"'s app: "+ago(data.at)+" · "+new Date(data.at).toLocaleString("en-US",{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
   const st=monday(new Date()),en=new Date(st);en.setDate(en.getDate()+6);const s=weekStats(act,G,st);
   const done=s.checks.filter(Boolean).length,today=(new Date().getDay()+6)%7,names=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   const dayIdx=today;const daysLeft=6-dayIdx;const missedDay=s.dayOn.slice(0,dayIdx).some(x=>!x);
@@ -161,7 +171,7 @@ function render(data){
   D.innerHTML=`
   <section class="card">
     <div class="row"><span class="lbl">This week · ${fmtD(st)}–${fmtD(en)}</span><span class="pill ${status[0]}">${status[1]}</span></div>
-    <div class="row" style="align-items:end"><div class="amt">$${G.reward}</div><div class="note">${s.met?"He hit all four goals.":missedDay?"Missing any day means no reward this week. A new week starts Monday.":daysLeft?`${daysLeft} day${daysLeft===1?"":"s"} left after today.`:"Today is the last day of the week."}</div></div>
+    <div class="row" style="align-items:end"><div class="amt">$${G.reward}</div><div class="note">${s.met?K.He+" hit all four goals.":missedDay?"Missing any day means no reward this week. A new week starts Monday.":daysLeft?`${daysLeft} day${daysLeft===1?"":"s"} left after today.`:"Today is the last day of the week."}</div></div>
     <div class="days">${names.map((n,i)=>`<div class="day ${s.dayOn[i]?"on":""} ${i===today?"today":""}"><i></i>${n}</div>`).join("")}</div>
     <div class="goals">${goals.map((g,i)=>`<div class="goal ${s.checks[i]?"done":""}"><div class="row"><b>${g[0]}</b><span class="num">${i===3&&!s.m?"–":g[1]+g[3]} / ${g[2]}${g[3]}</span></div><div class="bar"><i style="width:${Math.min(100,pct(g[1],g[2])||0)}%"></i></div><span class="note">${g[4]}</span></div>`).join("")}</div>
     <div class="note">This week: about ${Math.round(s.ms/60000)} minutes of active study · ${s.vq} vocab quiz questions${s.vq?` (${pct(s.vqc,s.vq)}%)`:""} · ${s.e} English questions${s.e?` (${pct(s.ec,s.e)}%)`:""}</div>
@@ -178,7 +188,7 @@ function render(data){
   <section class="card">
     <div class="row"><h2>Vocabulary</h2><span class="num">${V.known} of ${V.total} mastered</span></div>
     <div class="bar"><i style="width:${pct(V.known,V.total)||0}%;background:var(--good)"></i></div>
-    ${V.learning&&V.learning.length?`<div class="lbl">Still learning (${V.learning.length})</div><div class="chips">${V.learning.slice(0,60).map(w=>`<span class="chip">${esc(w)}</span>`).join("")}${V.learning.length>60?`<span class="note">+${V.learning.length-60} more</span>`:""}</div><p class="note" style="margin:0">Ask him to use a few of these in a sentence at dinner.</p>`:`<p class="note" style="margin:0">No words marked "still learning" right now.</p>`}
+    ${V.learning&&V.learning.length?`<div class="lbl">Still learning (${V.learning.length})</div><div class="chips">${V.learning.slice(0,60).map(w=>`<span class="chip">${esc(w)}</span>`).join("")}${V.learning.length>60?`<span class="note">+${V.learning.length-60} more</span>`:""}</div><p class="note" style="margin:0">Ask ${K.him} to use a few of these in a sentence at dinner.</p>`:`<p class="note" style="margin:0">No words marked "still learning" right now.</p>`}
   </section>
   ${past.length?`<section class="card"><h2>Past weeks</h2><div class="hist">${past.join("")}</div></section>`:""}`;
 }
@@ -191,7 +201,8 @@ $("setup").addEventListener("submit",async e=>{e.preventDefault();const a=$("new
   if(!r.ok){let d={};try{d=await r.json()}catch(_){}er.textContent=d.error||"Couldn't save the PIN.";er.hidden=false;return}
   PIN=a;try{localStorage.setItem(PKEY,PIN)}catch(_){}$("setup").hidden=true;load()});
 $("refresh").onclick=load;
-$("signout").onclick=()=>{try{localStorage.removeItem(PKEY)}catch(e){}PIN="";$("pin").value="";$("dash").hidden=true;$("actions").hidden=true;$("login").hidden=false;$("updated").textContent="Dad's view · PIN required"};
+document.querySelectorAll("#kidsRow button").forEach(b=>b.onclick=()=>{STUDENT=b.dataset.s;try{localStorage.setItem("act-dad-student",STUDENT)}catch(e){}paintKids();$("dash").innerHTML="";load()});
+$("signout").onclick=()=>{try{localStorage.removeItem(PKEY)}catch(e){}PIN="";$("pin").value="";$("dash").hidden=true;$("actions").hidden=true;$("kidsRow").hidden=true;$("login").hidden=false;$("updated").textContent="Dad's view · PIN required"};
 load();
 </script>
 </body>

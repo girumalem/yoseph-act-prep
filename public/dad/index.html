@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>ACT Progress Dashboard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Literata:opsz,wght@7..72,400;7..72,600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: answer-sheet tint like the student app; summary first (goal), then days, then topics */
+:root{
+  --paper:#eef3ee; --sheet:#fbfdfb; --ink:#1f2622; --muted:#5d6a63; --rule:#c9d6cd;
+  --pencil:#f2b705; --pencil-ink:#2a2000; --good:#1f7a4a; --good-bg:#dff1e6; --warn:#a84a12; --warn-bg:#fbe7d8;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Literata",Georgia,serif; --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --paper:#141a17; --sheet:#1c2420; --ink:#e7eee9; --muted:#9aaaa1; --rule:#2f3b35;
+  --pencil:#f2c53d; --pencil-ink:#221a00; --good:#6fd39b; --good-bg:#16352a; --warn:#f0a06b; --warn-bg:#3a2516; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(26px,5vw,36px);line-height:1.05;margin:0;letter-spacing:-.02em}
+h1 span{background:var(--pencil);color:var(--pencil-ink);padding:0 .15em;border-radius:3px}
+h2{font-family:var(--display);font-size:18px;margin:0}
+.sub,.lbl{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.card{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.btn{font-family:var(--display);font-weight:700;font-size:15px;border-radius:8px;padding:10px 14px;cursor:pointer;border:1px solid var(--rule);background:var(--sheet);color:var(--ink)}
+.btn.primary{background:var(--pencil);color:var(--pencil-ink);border-color:transparent}
+button:focus-visible,input:focus-visible{outline:3px solid var(--pencil);outline-offset:2px}
+input[type=password]{font:inherit;font-family:var(--mono);font-size:22px;letter-spacing:.3em;width:10ch;padding:8px 12px;border-radius:8px;border:1px solid var(--rule);background:var(--paper);color:var(--ink)}
+.err{color:var(--warn);font-size:14px}
+.amt{font-family:var(--display);font-weight:800;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+.pill{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:99px;background:var(--rule);color:var(--ink)}
+.pill.won{background:var(--good);color:var(--sheet)} .pill.miss{background:var(--warn-bg);color:var(--warn)}
+.goals{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.goal{border:1px solid var(--rule);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.goal.done{border-color:var(--good)}
+.goal b{font-family:var(--display);font-size:15px}
+.num{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;color:var(--muted)} .goal.done .num{color:var(--good);font-weight:700}
+.bar{height:8px;background:var(--rule);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--pencil)}
+.goal.done .bar i{background:var(--good)}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.day{text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:4px}
+.day i{width:26px;height:26px;border-radius:50%;border:2px solid var(--rule);display:block}
+.day.on i{background:var(--good);border-color:var(--good)} .day.today{color:var(--ink);font-weight:700}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums;min-width:560px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--rule);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+tr.today td{font-weight:700}
+.zero{color:var(--muted)}
+.topics{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.trow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;font-size:14px;padding:6px 0;border-bottom:1px solid var(--rule)}
+.trow .bar{grid-column:1/-1;height:6px}
+.trow .bar i.lo{background:var(--warn)} .trow .bar i.hi{background:var(--good)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--display);font-weight:600;font-size:14px;padding:4px 10px;border-radius:99px;background:var(--warn-bg);color:var(--warn)}
+.hist div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--rule);padding:6px 0;font-size:14px}
+.note{font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="row" style="align-items:end">
+    <div>
+      <h1>ACT <span>Progress</span> Dashboard</h1>
+      <div class="sub" id="updated">Dad's view · PIN required</div>
+    </div>
+    <div class="row" id="actions" hidden>
+      <button class="btn" id="refresh">Refresh</button>
+      <button class="btn" id="signout">Sign out</button>
+    </div>
+  </header>
+
+  <form class="card" id="login" autocomplete="off">
+    <h2>Enter your PIN</h2>
+    <p class="note" style="margin:0">This page shows Yoseph's study activity, synced automatically from his ACT prep app.</p>
+    <div class="row" style="justify-content:flex-start">
+      <input type="password" id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="12" aria-label="PIN" required>
+      <button class="btn primary" type="submit">Open dashboard</button>
+    </div>
+    <label class="note"><input type="checkbox" id="remember" checked> Remember on this device</label>
+    <div class="err" id="loginErr" hidden></div>
+  </form>
+
+  <main id="dash" hidden style="display:flex;flex-direction:column;gap:18px"></main>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const PKEY="act-dad-pin";
+let PIN="";try{PIN=localStorage.getItem(PKEY)||""}catch(e){}
+
+const dkey=d=>{const x=new Date(d);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")};
+const monday=d=>{const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
+const fmtD=d=>d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const pct=(a,b)=>b?Math.round(a/b*100):null;
+
+async function load(){
+  const err=$("loginErr");err.hidden=true;
+  let r;try{r=await fetch("/api/progress",{headers:{"x-dad-pin":PIN},cache:"no-store"})}catch(e){showLoginErr("Couldn't reach the server. Check your connection and try again.");return}
+  let data={};try{data=await r.json()}catch(e){}
+  if(r.status===401){try{localStorage.removeItem(PKEY)}catch(e){}showLoginErr("That PIN didn't work. Try again.");return}
+  if(r.status===429){showLoginErr("Too many tries. Wait a minute and try again.");return}
+  if(!r.ok){showLoginErr(data.error||"Something went wrong. Try again in a minute.");return}
+  $("login").hidden=true;$("actions").hidden=false;$("dash").hidden=false;
+  render(data);
+}
+function showLoginErr(m){$("login").hidden=false;$("dash").hidden=true;$("actions").hidden=true;const e=$("loginErr");e.textContent=m;e.hidden=false}
+
+function items(d){return d?(d.cards||0)+(d.vq||0)+(d.m||0)+(d.e||0):0}
+function weekStats(act,G,start){
+  const s={days:0,cards:0,sets:0,m:0,mc:0,e:0,ec:0,vq:0,vqc:0,ms:0,dayOn:[],rows:[]};
+  for(let i=0;i<7;i++){const t=new Date(start);t.setDate(t.getDate()+i);const d=act[dkey(t)]||null;
+    const on=items(d)>=G.dayMin;s.dayOn.push(on);if(on)s.days++;s.rows.push({date:t,d});
+    if(d){s.cards+=d.cards||0;s.sets+=d.sets||0;s.m+=d.m||0;s.mc+=d.mc||0;s.e+=d.e||0;s.ec+=d.ec||0;s.vq+=d.vq||0;s.vqc+=d.vqc||0;s.ms+=d.ms||0}}
+  s.acc=s.m?Math.round(s.mc/s.m*100):0;
+  s.checks=[s.days>=G.days,s.cards>=G.cards,s.sets>=G.sets,s.m>0&&s.acc>=G.acc];s.met=s.checks.every(Boolean);return s;
+}
+function ago(ts){if(!ts)return"never";const m=Math.round((Date.now()-ts)/60000);if(m<1)return"just now";if(m<60)return m+" min ago";const h=Math.round(m/60);if(h<48)return h+" hr ago";return Math.round(h/24)+" days ago"}
+
+function render(data){
+  const D=$("dash");
+  if(data.empty){$("updated").textContent="No data yet";
+    D.innerHTML=`<div class="card"><h2>Waiting for Yoseph's first study session</h2><p class="note" style="margin:0">His progress appears here automatically after he opens the updated app and studies. There's nothing he needs to send.</p></div>`;return}
+  const G=data.goal||{days:7,cards:100,sets:3,acc:70,reward:25,dayMin:20},act=data.act||{};
+  $("updated").textContent="Last update from Yoseph's app: "+ago(data.at)+" · "+new Date(data.at).toLocaleString("en-US",{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+  const st=monday(new Date()),en=new Date(st);en.setDate(en.getDate()+6);const s=weekStats(act,G,st);
+  const done=s.checks.filter(Boolean).length,today=(new Date().getDay()+6)%7,names=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const dayIdx=today;const daysLeft=6-dayIdx;const missedDay=s.dayOn.slice(0,dayIdx).some(x=>!x);
+  const status=s.met?["won","Goal met · $"+G.reward+" earned"]:missedDay?["miss","A day was missed · goal can't be met this week"]:["","In progress · "+done+" of 4"];
+  const goals=[["Study days",s.days,G.days,"",`Days with ${G.dayMin}+ items answered`],["Vocab cards",s.cards,G.cards,"","Cards marked Got it or Still learning"],["Math sets",s.sets,G.sets,"","Full sets of 10 problems"],["Math accuracy",s.acc,G.acc,"%","Across all math problems this week"]];
+  const cell=(n,c)=>n?`${n}${c!=null?` <span class="zero">(${pct(c,n)}%)</span>`:""}`:`<span class="zero">–</span>`;
+  const rows=s.rows.map((r,i)=>{const d=r.d||{};return `<tr class="${i===today?"today":""}"><td>${names[i]} ${fmtD(r.date)}${s.dayOn[i]?" ✓":""}</td><td>${items(r.d)||'<span class="zero">0</span>'}</td><td>${cell(d.cards)}</td><td>${cell(d.vq,d.vqc)}</td><td>${cell(d.m,d.mc)}</td><td>${cell(d.e,d.ec)}</td><td>${d.ms?Math.round(d.ms/60000):'<span class="zero">–</span>'}</td></tr>`}).join("");
+  const topicRows=obj=>Object.entries(obj||{}).map(([c,v])=>{const tried=v.right+v.wrong,a=pct(v.right,tried);
+    return `<div class="trow"><span>${esc(c)}</span><span class="num">${tried?a+"% right":"not started"} · ${tried}/${v.total} tried</span><div class="bar"><i class="${a==null?"":a<70?"lo":"hi"}" style="width:${a==null?0:a}%"></i></div></div>`}).join("");
+  const weakest=[...Object.entries(data.math||{}),...Object.entries(data.english||{})].map(([c,v])=>[c,v.right+v.wrong,pct(v.right,v.right+v.wrong)]).filter(x=>x[1]>=3).sort((a,b)=>a[2]-b[2])[0];
+  const past=[];for(let w=1;w<=8;w++){const ps=new Date(st);ps.setDate(ps.getDate()-7*w);const x=weekStats(act,G,ps);
+    if(x.days||x.cards||x.m||x.e){const pe=new Date(ps);pe.setDate(pe.getDate()+6);past.push(`<div><span>${fmtD(ps)}–${fmtD(pe)}</span><span>${x.met?`<b style="color:var(--good)">Met · $${G.reward}</b>`:`Not met · ${x.checks.filter(Boolean).length}/4 · ${x.days}/7 days`}</span></div>`)}}
+  const V=data.vocab||{total:0,known:0,learning:[]};
+  D.innerHTML=`
+  <section class="card">
+    <div class="row"><span class="lbl">This week · ${fmtD(st)}–${fmtD(en)}</span><span class="pill ${status[0]}">${status[1]}</span></div>
+    <div class="row" style="align-items:end"><div class="amt">$${G.reward}</div><div class="note">${s.met?"He hit all four goals.":missedDay?"Missing any day means no reward this week. A new week starts Monday.":daysLeft?`${daysLeft} day${daysLeft===1?"":"s"} left after today.`:"Today is the last day of the week."}</div></div>
+    <div class="days">${names.map((n,i)=>`<div class="day ${s.dayOn[i]?"on":""} ${i===today?"today":""}"><i></i>${n}</div>`).join("")}</div>
+    <div class="goals">${goals.map((g,i)=>`<div class="goal ${s.checks[i]?"done":""}"><div class="row"><b>${g[0]}</b><span class="num">${i===3&&!s.m?"–":g[1]+g[3]} / ${g[2]}${g[3]}</span></div><div class="bar"><i style="width:${Math.min(100,pct(g[1],g[2])||0)}%"></i></div><span class="note">${g[4]}</span></div>`).join("")}</div>
+    <div class="note">This week: about ${Math.round(s.ms/60000)} minutes of active study · ${s.vq} vocab quiz questions${s.vq?` (${pct(s.vqc,s.vq)}%)`:""} · ${s.e} English questions${s.e?` (${pct(s.ec,s.e)}%)`:""}</div>
+  </section>
+  <section class="card">
+    <h2>Day by day</h2>
+    <div class="tablewrap"><table><thead><tr><th>Day</th><th>Items</th><th>Cards</th><th>Vocab quiz</th><th>Math</th><th>English</th><th>Min</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note" style="margin:0">A ✓ means the day counts toward the goal (${G.dayMin}+ items). Percentages show how many he got right.</p>
+  </section>
+  <section class="card">
+    <div class="row"><h2>By topic (all time)</h2>${weakest?`<span class="pill miss">Needs work: ${esc(weakest[0])} (${weakest[2]}%)</span>`:""}</div>
+    <div class="topics"><div><div class="lbl">Math</div>${topicRows(data.math)}</div><div><div class="lbl">English</div>${topicRows(data.english)}</div></div>
+  </section>
+  <section class="card">
+    <div class="row"><h2>Vocabulary</h2><span class="num">${V.known} of ${V.total} mastered</span></div>
+    <div class="bar"><i style="width:${pct(V.known,V.total)||0}%;background:var(--good)"></i></div>
+    ${V.learning&&V.learning.length?`<div class="lbl">Still learning (${V.learning.length})</div><div class="chips">${V.learning.slice(0,60).map(w=>`<span class="chip">${esc(w)}</span>`).join("")}${V.learning.length>60?`<span class="note">+${V.learning.length-60} more</span>`:""}</div><p class="note" style="margin:0">Ask him to use a few of these in a sentence at dinner.</p>`:`<p class="note" style="margin:0">No words marked "still learning" right now.</p>`}
+  </section>
+  ${past.length?`<section class="card"><h2>Past weeks</h2><div class="hist">${past.join("")}</div></section>`:""}`;
+}
+
+$("login").addEventListener("submit",e=>{e.preventDefault();PIN=$("pin").value.trim();if($("remember").checked){try{localStorage.setItem(PKEY,PIN)}catch(_){}}load()});
+$("refresh").onclick=load;
+$("signout").onclick=()=>{try{localStorage.removeItem(PKEY)}catch(e){}PIN="";$("pin").value="";$("dash").hidden=true;$("actions").hidden=true;$("login").hidden=false;$("updated").textContent="Dad's view · PIN required"};
+if(PIN)load();
+</script>
+</body>
+</html>

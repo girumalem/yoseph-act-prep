@@ -945,6 +945,7 @@ function snapshot(){
 }
 function syncNow(keep){clearTimeout(syncTimer);
   if(!/^https?:/.test(location.protocol))return;
+  if(!Object.keys(act).length)return; // never overwrite Dad's view from a device nobody has studied on
   try{fetch(SYNC_URL,{method:"POST",keepalive:!!keep,headers:{"content-type":"application/json","x-sync-token":SYNC_TOKEN},body:JSON.stringify(snapshot())})
     .then(r=>{if(r.ok){lastSync=Date.now();syncState="ok";try{localStorage.setItem("act-last-sync",String(lastSync))}catch(e){}}else syncState="err"})
     .catch(()=>{syncState="err"})}catch(e){syncState="err"}}

@@ -80,7 +80,7 @@ tr.today td{font-weight:700}
     </div>
   </header>
 
-  <form class="card" id="login" autocomplete="off">
+  <form class="card" id="login" autocomplete="off" hidden>
     <h2>Enter your PIN</h2>
     <p class="note" style="margin:0">This page shows Yoseph's study activity, synced automatically from his ACT prep app.</p>
     <div class="row" style="justify-content:flex-start">
@@ -89,6 +89,17 @@ tr.today td{font-weight:700}
     </div>
     <label class="note"><input type="checkbox" id="remember" checked> Remember on this device</label>
     <div class="err" id="loginErr" hidden></div>
+  </form>
+
+  <form class="card" id="setup" autocomplete="off" hidden>
+    <h2>Create your dashboard PIN</h2>
+    <p class="note" style="margin:0">First time here. Pick a PIN of 4 to 12 digits. You'll use it to open this page.</p>
+    <div class="row" style="justify-content:flex-start">
+      <input type="password" id="newPin" inputmode="numeric" pattern="[0-9]*" maxlength="12" aria-label="New PIN" required>
+      <input type="password" id="newPin2" inputmode="numeric" pattern="[0-9]*" maxlength="12" aria-label="Confirm PIN" required>
+      <button class="btn primary" type="submit">Save PIN</button>
+    </div>
+    <div class="err" id="setupErr" hidden></div>
   </form>
 
   <main id="dash" hidden style="display:flex;flex-direction:column;gap:18px"></main>
@@ -108,7 +119,8 @@ async function load(){
   const err=$("loginErr");err.hidden=true;
   let r;try{r=await fetch("/api/progress",{headers:{"x-dad-pin":PIN},cache:"no-store"})}catch(e){showLoginErr("Couldn't reach the server. Check your connection and try again.");return}
   let data={};try{data=await r.json()}catch(e){}
-  if(r.status===401){try{localStorage.removeItem(PKEY)}catch(e){}showLoginErr("That PIN didn't work. Try again.");return}
+  if(r.status===428){$("login").hidden=true;$("setup").hidden=false;return}
+  if(r.status===401){if(!PIN){$("login").hidden=false;return}try{localStorage.removeItem(PKEY)}catch(e){}showLoginErr("That PIN didn't work. Try again.");return}
   if(r.status===429){showLoginErr("Too many tries. Wait a minute and try again.");return}
   if(!r.ok){showLoginErr(data.error||"Something went wrong. Try again in a minute.");return}
   $("login").hidden=true;$("actions").hidden=false;$("dash").hidden=false;
@@ -172,9 +184,15 @@ function render(data){
 }
 
 $("login").addEventListener("submit",e=>{e.preventDefault();PIN=$("pin").value.trim();if($("remember").checked){try{localStorage.setItem(PKEY,PIN)}catch(_){}}load()});
+$("setup").addEventListener("submit",async e=>{e.preventDefault();const a=$("newPin").value.trim(),b=$("newPin2").value.trim(),er=$("setupErr");er.hidden=true;
+  if(!/^\d{4,12}$/.test(a)){er.textContent="Use 4 to 12 digits.";er.hidden=false;return}
+  if(a!==b){er.textContent="The two PINs don't match.";er.hidden=false;return}
+  let r;try{r=await fetch("/api/progress",{method:"POST",headers:{"x-setup-pin":a}})}catch(_){er.textContent="Couldn't reach the server. Try again.";er.hidden=false;return}
+  if(!r.ok){let d={};try{d=await r.json()}catch(_){}er.textContent=d.error||"Couldn't save the PIN.";er.hidden=false;return}
+  PIN=a;try{localStorage.setItem(PKEY,PIN)}catch(_){}$("setup").hidden=true;load()});
 $("refresh").onclick=load;
 $("signout").onclick=()=>{try{localStorage.removeItem(PKEY)}catch(e){}PIN="";$("pin").value="";$("dash").hidden=true;$("actions").hidden=true;$("login").hidden=false;$("updated").textContent="Dad's view · PIN required"};
-if(PIN)load();
+load();
 </script>
 </body>
 </html>

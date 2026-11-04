@@ -7,14 +7,6 @@ const STORE = "act-progress"
 const KEY = "yoseph"
 const WRITE_TOKEN = "yoseph-act-sync-v1" // ships in the app; only stops random posts
 const MAX_BYTES = 300_000
-// SHA-256 of Dad's PIN. To change the PIN, set a DAD_PIN environment variable
-// in Netlify (it takes priority) or replace this hash.
-const PIN_SHA256 = "cff225afb4fc8ef8e7c210efcfddfce78d85538abadcfb7d61cd5d6af09fa455"
-
-async function sha256(text: string) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("")
-}
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -38,10 +30,11 @@ export default async (req: Request, context: Context) => {
   }
 
   if (req.method === "GET") {
+    // Dad's PIN lives only in the DAD_PIN environment variable (set in the Netlify UI).
+    const pin = (Netlify.env.get("DAD_PIN") || "").trim()
+    if (!pin) return json({ error: "The dashboard PIN isn't set up yet. Add DAD_PIN under Environment variables in Netlify, then redeploy." }, 503)
     const given = (req.headers.get("x-dad-pin") || "").trim()
-    const envPin = Netlify.env.get("DAD_PIN")
-    const ok = given !== "" && (envPin ? given === envPin : (await sha256(given)) === PIN_SHA256)
-    if (!ok) return json({ error: "Wrong PIN." }, 401)
+    if (given !== pin) return json({ error: "Wrong PIN." }, 401)
     const data = await store.get(KEY, { type: "json" })
     if (data === null) return json({ empty: true })
     return json(data)
